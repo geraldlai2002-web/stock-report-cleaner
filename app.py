@@ -15,5 +15,11 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
+if uploaded_files:
+    st.write("### Uploaded Files")
+
+    for file in uploaded_files:
+        st.write(file.name)
+
 if st.button("Process"):
-    st.success("Process button clicked!")
+    st.success("Processing...")
