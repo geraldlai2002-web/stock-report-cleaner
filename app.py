@@ -34,13 +34,17 @@ if uploaded_files:
         # ---------- Read actual table ----------
         df = pd.read_excel(file, header=1)
 
-        # Remove completely empty rows
-        df = df.dropna(how="all")
+       # Remove completely empty rows
+       df = df.dropna(how="all")
 
-        # Add Year column
-        df.insert(0, "Year", year)
+      # Remove category rows like PMAT, RMAT, FG, etc.
+      df = df[df["Description"].notna()]
 
-        all_data.append(df)
+      # Add Year column
+      df.insert(0, "Year", year)
+
+     all_data.append(df)
+       
 
     # Merge all reports
     final_df = pd.concat(all_data, ignore_index=True)
