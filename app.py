@@ -59,14 +59,23 @@ if uploaded_files:
 
             df = df[~df["Stk Code"].isin(remove_codes)]
 
-            # Remove Grand Total
-            df = df[
-                ~df["Stk Code"].str.contains(
-                    "Grand",
-                    case=False,
-                    na=False
-                )
-            ]
+           # Remove Grand Total
+df = df[
+    ~df["Stk Code"].str.contains(
+        "Grand",
+        case=False,
+        na=False
+    )
+]
+
+# Remove Page footer
+df = df[
+    ~df["Stk Code"].str.contains(
+        "Page",
+        case=False,
+        na=False
+    )
+]
 
         # Add Year column
         df.insert(0, "Year", year)
