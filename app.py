@@ -11,41 +11,46 @@ st.set_page_config(
 )
 
 st.title("📊 Stock Report Cleaner")
-st.markdown("### Upload yearly inventory reports for Power BI")
+st.write("Prepare yearly inventory reports for Power BI")
 
 uploaded_files = st.file_uploader(
-    "📂 Drag and drop Excel files here or click Browse Files",
+    "📂 Drag & Drop Excel Files Here",
     type=["xlsx"],
-    accept_multiple_files=True,
-    help="Upload all yearly reports (2015 - 2026)"
+    accept_multiple_files=True
 )
 
 if uploaded_files:
 
     st.success(f"✅ {len(uploaded_files)} file(s) selected")
 
-    st.markdown("### Selected Files")
-
-    file_list = pd.DataFrame({
-        "No.": range(1, len(uploaded_files)+1),
+    file_df = pd.DataFrame({
+        "No": range(1, len(uploaded_files)+1),
         "File Name": [f.name for f in uploaded_files]
     })
 
-    st.dataframe(file_list, use_container_width=True)
+    st.subheader("Uploaded Files")
+    st.dataframe(file_df, use_container_width=True)
 
     if st.button("🚀 Process Reports"):
 
         progress = st.progress(0)
+        status = st.empty()
 
         all_data = []
         years = []
 
         total_files = len(uploaded_files)
 
-        for i, file in enumerate(uploaded_files):
+        for index, file in enumerate(uploaded_files):
+
+            status.write(f"Processing {file.name}...")
 
             # Read first row
-            header = pd.read_excel(file, header=None, nrows=1)
+            header = pd.read_excel(
+                file,
+                header=None,
+                nrows=1
+            )
 
             header_text = " ".join(
                 header.fillna("").astype(str).values.flatten()
@@ -59,20 +64,28 @@ if uploaded_files:
             )
 
             if match:
-                year = match.group(1)
-                years.append(int(year))
 
-            # Read report
-            df = pd.read_excel(file, header=1)
+                year = int(match.group(1))
 
-            # Remove blank rows
+                if year in years:
+                    st.error(f"❌ Duplicate Year Detected : {year}")
+                    st.stop()
+
+                years.append(year)
+
+            # Read table
+            df = pd.read_excel(
+                file,
+                header=1
+            )
+
+            # Remove empty rows
             df = df.dropna(how="all")
 
-            # Remove rows containing "Page"
+            # Remove rows containing Page
             df = df[
-                ~df.astype(str)
-                .apply(
-                    lambda row: row.str.contains(
+                ~df.astype(str).apply(
+                    lambda x: x.str.contains(
                         "Page",
                         case=False,
                         na=False
@@ -110,37 +123,79 @@ if uploaded_files:
                     )
                 ]
 
-            df.insert(0, "Year", year)
+            df.insert(
+                0,
+                "Year",
+                year
+            )
 
             all_data.append(df)
 
-            progress.progress((i + 1) / total_files)
+            progress.progress(
+                (index + 1) / total_files
+            )
 
             time.sleep(0.1)
 
-        final_df = pd.concat(all_data, ignore_index=True)
+        status.empty()
 
-        if years:
-            final_df = final_df.sort_values("Year")
+        # Missing year check
+        if len(years) > 1:
 
-        st.success("✅ Processing Complete!")
+            expected = list(
+                range(
+                    min(years),
+                    max(years)+1
+                )
+            )
 
-        st.markdown("## 📊 Processing Summary")
+            missing = sorted(
+                set(expected)-set(years)
+            )
+
+            if missing:
+
+                st.warning(
+                    "⚠ Missing Year(s): "
+                    + ", ".join(
+                        map(str, missing)
+                    )
+                )
+
+        final_df = pd.concat(
+            all_data,
+            ignore_index=True
+        )
+
+        final_df = final_df.sort_values(
+            "Year"
+        )
+
+        st.success("✅ Processing Complete")
 
         col1, col2, col3 = st.columns(3)
 
-        col1.metric("Files Processed", len(uploaded_files))
-        col2.metric("Rows Processed", len(final_df))
-        col3.metric(
-            "Years",
-            f"{min(years)} - {max(years)}"
+        col1.metric(
+            "Files",
+            len(uploaded_files)
         )
 
-        st.markdown("### Preview")
+        col2.metric(
+            "Rows",
+            len(final_df)
+        )
+
+        col3.metric(
+            "Years",
+            f"{min(years)}-{max(years)}"
+        )
+
+        st.subheader("Preview")
 
         st.dataframe(
             final_df,
-            use_container_width=True
+            use_container_width=True,
+            height=500
         )
 
         output = BytesIO()
@@ -161,3 +216,8 @@ if uploaded_files:
             file_name=f"Stock_Report_{min(years)}_{max(years)}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+st.markdown("---")
+st.caption("📊 Stock Report Cleaner v2.1")
+st.caption("Developed by JUN THANG LAI")
+st.caption("Internship Project")
