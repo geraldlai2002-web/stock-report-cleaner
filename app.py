@@ -314,7 +314,7 @@ if uploaded_files:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-         elif download_separate:
+        if download_separate:
 
             zip_buffer = BytesIO()
 
