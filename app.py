@@ -4,6 +4,7 @@ import re
 from io import BytesIO
 import zipfile
 import time
+import os
 
 st.set_page_config(
     page_title="Stock Report Cleaner",
@@ -20,9 +21,19 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True
 )
 
-if uploaded_files:
+ if uploaded_files:
 
-    st.success(f"✅ {len(uploaded_files)} file(s) selected")
+    col1, col2 = st.columns([4, 1])
+
+    with col1:
+        st.success(f"✅ {len(uploaded_files)} file(s) selected")
+
+    with col2:
+        if st.button("🔄 Reset"):
+
+            st.session_state.clear()
+
+            st.rerun()
 
     file_df = pd.DataFrame({
         "No": range(1, len(uploaded_files) + 1),
