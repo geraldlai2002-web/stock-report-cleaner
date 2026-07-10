@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 from io import BytesIO
+import zipfile
 import time
 
 st.set_page_config(
@@ -272,6 +273,15 @@ if uploaded_files:
         # -----------------------------
         # Complete Report
         # -----------------------------
+        st.subheader("📤 Export Option")
+
+       export_option = st.radio(
+         "Choose export format:",
+          [
+           "Merged Report",
+           "Separate Reports (.zip)"
+          ]
+        )
         st.markdown("---")
         st.subheader("📊 Complete Report")
 
@@ -281,24 +291,65 @@ if uploaded_files:
             height=450
         )
 
-        output = BytesIO()
+        if export_option == "Merged Report":
+            if export_option == "Separate Reports (.zip)":
 
-        with pd.ExcelWriter(
-            output,
-            engine="openpyxl"
-        ) as writer:
+    zip_buffer = BytesIO()
 
-            final_df.to_excel(
-                writer,
-                index=False
+    with zipfile.ZipFile(
+        zip_buffer,
+        "w",
+        zipfile.ZIP_DEFLATED
+    ) as zip_file:
+
+        for year in sorted(final_df["Year"].unique()):
+
+            yearly_df = final_df[
+                final_df["Year"] == year
+            ]
+
+            excel_buffer = BytesIO()
+
+            with pd.ExcelWriter(
+                excel_buffer,
+                engine="openpyxl"
+            ) as writer:
+
+                yearly_df.to_excel(
+                    writer,
+                    index=False
+                )
+
+            zip_file.writestr(
+                f"Stock_Report_{year}.xlsx",
+                excel_buffer.getvalue()
             )
 
-        st.download_button(
-            "📥 Download Final Report",
-            output.getvalue(),
-            file_name=f"Stock_Report_{min(years)}_{max(years)}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    st.download_button(
+        "📦 Download Separate Reports (.zip)",
+        zip_buffer.getvalue(),
+        file_name="Stock_Reports.zip",
+        mime="application/zip"
+    )
+ 
+     output = BytesIO()
+
+     with pd.ExcelWriter(
+        output,
+        engine="openpyxl"
+     ) as writer:
+
+        final_df.to_excel(
+            writer,
+            index=False
         )
+
+     st.download_button(
+        "📥 Download Merged Report",
+        output.getvalue(),
+        file_name=f"Stock_Report_{min(years)}_{max(years)}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      )
 
         # -----------------------------
         # Processing Log
