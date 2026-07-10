@@ -400,5 +400,5 @@ if uploaded_files:
 
 st.markdown("---")
 st.caption("📊 Stock Report Cleaner v3.0")
-st.caption("Developed by JUN THANG LAI")
+st.caption("Developed by Gerald")
 st.caption("Internship Project")
