@@ -275,13 +275,13 @@ if uploaded_files:
         # -----------------------------
         st.subheader("📤 Export Option")
 
-        export_option = st.radio(
-            "Choose export format:",
-            [
-                "Merged Report",
-                "Separate Reports (.zip)"
-            ]
+        download_merged = st.checkbox(
+            "📄 Merged Report (.xlsx)",
+            value=True
         )
+        
+        download_separate = st.checkbox(
+            "📦 Separate Reports (.zip)")
 
         st.markdown("---")
         st.subheader("📊 Complete Report")
@@ -293,7 +293,7 @@ if uploaded_files:
         )
 
         # Export
-        if export_option == "Merged Report":
+        if download_merged:
 
             output = BytesIO()
 
@@ -314,7 +314,7 @@ if uploaded_files:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-        elif export_option == "Separate Reports (.zip)":
+         if download_separate:
 
             zip_buffer = BytesIO()
 
