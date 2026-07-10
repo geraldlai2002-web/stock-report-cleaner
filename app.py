@@ -13,10 +13,14 @@ st.set_page_config(
 st.title("📊 Stock Report Cleaner")
 st.write("Prepare yearly inventory reports for Power BI")
 
+if "uploader_key" not in st.session_state:
+    st.session_state["uploader_key"] = 0
+
 uploaded_files = st.file_uploader(
     "📂 Drag & Drop Excel Files Here",
     type=["xlsx"],
-    accept_multiple_files=True
+    accept_multiple_files=True,
+    key=f"uploader_{st.session_state['uploader_key']}"
 )
 
 
@@ -145,7 +149,9 @@ if uploaded_files:
     with col2:
         if st.button("🔄 Reset"):
 
-            st.session_state.clear()
+            st.session_state["uploader_key"] += 1
+            st.session_state.pop("processed", None)
+            process_files.clear()
 
             st.rerun()
 
