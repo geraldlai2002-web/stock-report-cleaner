@@ -275,13 +275,14 @@ if uploaded_files:
         # -----------------------------
         st.subheader("📤 Export Option")
 
-       export_option = st.radio(
-         "Choose export format:",
-          [
-           "Merged Report",
-           "Separate Reports (.zip)"
-          ]
+        export_option = st.radio(
+            "Choose export format:",
+            [
+                "Merged Report",
+                "Separate Reports (.zip)"
+            ]
         )
+
         st.markdown("---")
         st.subheader("📊 Complete Report")
 
@@ -291,7 +292,7 @@ if uploaded_files:
             height=450
         )
 
-               # Export
+        # Export
         if export_option == "Merged Report":
 
             output = BytesIO()
