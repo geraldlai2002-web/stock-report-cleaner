@@ -190,12 +190,55 @@ if uploaded_files:
             f"{min(years)}-{max(years)}"
         )
 
-        st.subheader("Preview")
+        st.subheader("🔍 Search Stock Code")
+
+search_code = st.text_input(
+    "Enter Stock Code (Example: D10001)"
+)
+
+if search_code:
+
+    result = final_df[
+        final_df["Stk Code"]
+        .astype(str)
+        .str.upper()
+        ==
+        search_code.upper()
+    ]
+
+    if result.empty:
+
+        st.warning("No record found.")
+
+    else:
+
+        st.success(
+            f"{len(result)} record(s) found."
+        )
 
         st.dataframe(
-            final_df,
+            result,
             use_container_width=True,
             height=500
+        )
+
+        output2 = BytesIO()
+
+        with pd.ExcelWriter(
+            output2,
+            engine="openpyxl"
+        ) as writer:
+
+            result.to_excel(
+                writer,
+                index=False
+            )
+
+        st.download_button(
+            "📤 Export Search Result",
+            output2.getvalue(),
+            file_name=f"{search_code.upper()}_Report.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
         output = BytesIO()
