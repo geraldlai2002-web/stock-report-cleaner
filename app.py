@@ -13,6 +13,15 @@ st.set_page_config(
 st.title("📊 Stock Report Cleaner")
 st.write("Prepare yearly inventory reports for Power BI")
 
+DEFAULT_REMOVE_CODES = [
+    "PMAT",
+    "RMAT",
+    "FG",
+    "WIP",
+    "PACKING",
+    "OTHERS"
+]
+
 if "uploader_key" not in st.session_state:
     st.session_state["uploader_key"] = 0
 
@@ -25,12 +34,16 @@ uploaded_files = st.file_uploader(
 
 
 @st.cache_data(show_spinner=False)
-def process_files(files):
+def process_files(files, remove_codes):
     """
     Reads, cleans, and combines all uploaded Excel reports.
-    Cached on file content, so re-running the app (e.g. typing in the
-    search box, toggling a checkbox) will NOT re-read/re-clean the files —
-    it only recomputes if the actual set of uploaded files changes.
+    Cached on (file content, remove_codes), so re-running the app (e.g.
+    typing in the search box, toggling a checkbox) will NOT re-read/
+    re-clean the files — it only recomputes if the uploaded files OR
+    the exclusion list changes.
+
+    remove_codes: tuple of stock codes to exclude (tuple, not list,
+    so it's hashable and works as a cache key).
     """
 
     all_data = []
@@ -98,15 +111,6 @@ def process_files(files):
                 .str.strip()
             )
 
-            remove_codes = [
-                "PMAT",
-                "RMAT",
-                "FG",
-                "WIP",
-                "PACKING",
-                "OTHERS"
-            ]
-
             df = df[
                 ~df["Stk Code"].isin(remove_codes)
             ]
@@ -163,19 +167,55 @@ if uploaded_files:
     st.subheader("Uploaded Files")
     st.dataframe(file_df, use_container_width=True)
 
+    # -----------------------------
+    # Configurable Exclusion List
+    # -----------------------------
+    st.subheader("⚙️ Stock Code Exclusion Settings")
+
+    st.caption(
+        "Rows whose 'Stk Code' matches any of the selected codes below "
+        "will be removed from the cleaned report."
+    )
+
+    selected_codes = st.multiselect(
+        "Codes to exclude",
+        options=DEFAULT_REMOVE_CODES,
+        default=DEFAULT_REMOVE_CODES
+    )
+
+    custom_codes_input = st.text_input(
+        "Add custom code(s) to exclude (comma-separated, optional)",
+        placeholder="e.g. SCRAP, SAMPLE"
+    )
+
+    custom_codes = [
+        code.strip().upper()
+        for code in custom_codes_input.split(",")
+        if code.strip()
+    ]
+
+    remove_codes = tuple(
+        sorted(set(selected_codes) | set(custom_codes))
+    )
+
+    if remove_codes:
+        st.caption(f"Currently excluding: {', '.join(remove_codes)}")
+    else:
+        st.caption("No codes selected — no rows will be excluded by code.")
+
     if st.button("🚀 Process Reports"):
         st.session_state["processed"] = True
 
     if st.session_state.get("processed", False):
 
         # process_files is cached, so this only actually does work the
-        # first time (or when the uploaded files change) — every later
-        # rerun of the script (search box, checkboxes, etc.) just reuses
-        # the cached result instantly.
+        # first time (or when the uploaded files / remove_codes change) —
+        # every later rerun of the script (search box, checkboxes, etc.)
+        # just reuses the cached result instantly.
         try:
             with st.spinner("Processing reports..."):
                 final_df, years, total_rows_before, total_rows_after = process_files(
-                    uploaded_files
+                    uploaded_files, remove_codes
                 )
         except ValueError as e:
             st.error(f"❌ {e}")
@@ -408,3 +448,4 @@ st.markdown("---")
 st.caption("📊 Stock Report Cleaner v3.0")
 st.caption("Developed by Gerald")
 st.caption("Internship Project")
+
