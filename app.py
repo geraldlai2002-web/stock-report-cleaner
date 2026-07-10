@@ -273,15 +273,17 @@ if uploaded_files:
         # -----------------------------
         # Complete Report
         # -----------------------------
-        st.subheader("📤 Export Option")
-
-        download_merged = st.checkbox(
-            "📄 Merged Report (.xlsx)",
-            value=True
-        )
-        
-        download_separate = st.checkbox(
-            "📦 Separate Reports (.zip)")
+        st.subheader("📥 Download Reports")
+        col1, col2 = st.columns(2)
+        with col1:
+            download_merged = st.checkbox(
+                "📄 Merged Excel (.xlsx)",
+                value=True
+            )
+        with col2:
+            download_separate = st.checkbox(
+                "📦 Separate Excel Files (.zip)"
+            )
 
         st.markdown("---")
         st.subheader("📊 Complete Report")
