@@ -266,6 +266,19 @@ if uploaded_files:
 
         dup_key = ["Year", "Warehouse", "Stk Code"]
 
+        # Row-drops chosen in a previous run must be reapplied on every
+        # rerun (typing in the search box, toggling a checkbox, etc. all
+        # trigger a rerun that otherwise rebuilds final_df from scratch
+        # and would silently bring the "removed" duplicates back).
+        if "dup_drop_indices" not in st.session_state:
+            st.session_state["dup_drop_indices"] = []
+
+        if st.session_state["dup_drop_indices"]:
+            final_df = final_df.drop(
+                index=st.session_state["dup_drop_indices"],
+                errors="ignore"
+            )
+
         # keep=False flags EVERY row in a duplicated group (not just the
         # extra ones), so the preview shows the original alongside its
         # duplicate(s) for direct comparison.
@@ -387,14 +400,22 @@ if uploaded_files:
                             i for i in group_df.index if i != keep_idx
                         )
 
+                    # Persist so this removal survives future reruns
+                    # (search box, checkboxes, etc.), not just this run.
+                    st.session_state["dup_drop_indices"].extend(drop_indices)
+
                     final_df = final_df.drop(index=drop_indices)
-                    removed_dupe_count = len(drop_indices)
+                    removed_dupe_count = len(
+                        st.session_state["dup_drop_indices"]
+                    )
 
                     st.success(
-                        f"🧹 Removed {removed_dupe_count} duplicate "
+                        f"🧹 Removed {len(drop_indices)} duplicate "
                         f"row(s) based on your selections. "
                         f"{len(final_df)} row(s) remain."
                     )
+
+                    st.rerun()
 
                 else:
 
@@ -402,6 +423,14 @@ if uploaded_files:
                         "Make a selection for each group above, then "
                         "click Apply Selection to remove the rest."
                     )
+
+            if st.session_state["dup_drop_indices"]:
+
+                removed_dupe_count = len(st.session_state["dup_drop_indices"])
+
+                if st.button("↩️ Undo all duplicate removals"):
+                    st.session_state["dup_drop_indices"] = []
+                    st.rerun()
 
 
         # -----------------------------
