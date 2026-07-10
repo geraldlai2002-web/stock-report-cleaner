@@ -280,6 +280,7 @@ if uploaded_files:
             )
 
             duplicate_action = "Keep all rows"
+            removed_dupe_count = 0
 
         else:
 
@@ -324,26 +325,84 @@ if uploaded_files:
                 "How would you like to handle these duplicates?",
                 options=[
                     "Keep all rows (do nothing)",
-                    "Remove duplicates (keep first occurrence only)"
+                    "Manually choose which row to keep, per group"
                 ],
                 index=0
             )
 
-            if duplicate_action == "Remove duplicates (keep first occurrence only)":
+            removed_dupe_count = 0
 
-                before_dedup = len(final_df)
+            if duplicate_action == "Manually choose which row to keep, per group":
 
-                final_df = final_df.drop_duplicates(
-                    subset=dup_key,
-                    keep="first"
+                st.caption(
+                    "For each group below, pick the row that should be "
+                    "kept. Every other row in that group will be removed "
+                    "once you click Apply."
                 )
 
-                removed_dupe_count = before_dedup - len(final_df)
+                # Columns to show in each option's label so the numbers
+                # are visible right there in the picker, not just in the
+                # preview table above.
+                display_cols = [
+                    c for c in [
+                        "Prev. Qty", "In Qty", "Transfer", "Transform",
+                        "Issue Qty", "Del. Qty", "Bal Qty"
+                    ]
+                    if c in final_df.columns
+                ]
 
-                st.info(
-                    f"🧹 Removed {removed_dupe_count} duplicate row(s). "
-                    f"{len(final_df)} row(s) remain."
-                )
+                with st.form("dup_resolution_form"):
+
+                    keep_choice_by_group = {}
+
+                    for group_key, group_df in dup_rows.groupby(dup_key):
+
+                        year_g, warehouse_g, code_g = group_key
+
+                        def format_row(idx, gdf=group_df):
+                            row = gdf.loc[idx]
+                            details = ", ".join(
+                                f"{c}={row[c]}" for c in display_cols
+                            )
+                            return f"Row {idx} — {details}"
+
+                        keep_choice_by_group[group_key] = st.radio(
+                            f"**{code_g}** — {warehouse_g} ({year_g})",
+                            options=list(group_df.index),
+                            format_func=format_row,
+                            key=f"dup_keep_{year_g}_{warehouse_g}_{code_g}"
+                        )
+
+                    apply_clicked = st.form_submit_button(
+                        "✅ Apply Selection"
+                    )
+
+                if apply_clicked:
+
+                    drop_indices = []
+
+                    for group_key, group_df in dup_rows.groupby(dup_key):
+                        keep_idx = keep_choice_by_group[group_key]
+                        drop_indices.extend(
+                            i for i in group_df.index if i != keep_idx
+                        )
+
+                    final_df = final_df.drop(index=drop_indices)
+                    removed_dupe_count = len(drop_indices)
+
+                    st.success(
+                        f"🧹 Removed {removed_dupe_count} duplicate "
+                        f"row(s) based on your selections. "
+                        f"{len(final_df)} row(s) remain."
+                    )
+
+                else:
+
+                    st.info(
+                        "Make a selection for each group above, then "
+                        "click Apply Selection to remove the rest."
+                    )
+
 
         # -----------------------------
         # Search Stock Code
@@ -512,6 +571,7 @@ if uploaded_files:
                 "Years",
                 "Duplicate Groups Found",
                 "Duplicate Action",
+                "Duplicate Rows Removed",
                 "Status"
             ],
             "Value": [
@@ -522,6 +582,7 @@ if uploaded_files:
                 f"{min(years)} - {max(years)}",
                 dup_rows.groupby(dup_key).ngroups if not dup_rows.empty else 0,
                 duplicate_action,
+                removed_dupe_count,
                 "SUCCESS"
             ]
         })
