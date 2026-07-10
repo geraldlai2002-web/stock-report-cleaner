@@ -253,6 +253,99 @@ if uploaded_files:
         ]
 
         # -----------------------------
+        # Duplicate Check
+        # -----------------------------
+        st.markdown("---")
+        st.subheader("🔁 Duplicate Check")
+
+        st.caption(
+            "A stock code legitimately repeats across different "
+            "warehouses, but should never appear twice within the "
+            "same Year + Warehouse. Rows that do are flagged below."
+        )
+
+        dup_key = ["Year", "Warehouse", "Stk Code"]
+
+        # keep=False flags EVERY row in a duplicated group (not just the
+        # extra ones), so the preview shows the original alongside its
+        # duplicate(s) for direct comparison.
+        dup_mask = final_df.duplicated(subset=dup_key, keep=False)
+        dup_rows = final_df[dup_mask].sort_values(dup_key)
+
+        if dup_rows.empty:
+
+            st.success(
+                "✅ No duplicate Stk Codes found within the same "
+                "Year + Warehouse."
+            )
+
+            duplicate_action = "Keep all rows"
+
+        else:
+
+            dup_groups = dup_rows.groupby(dup_key).ngroups
+
+            st.warning(
+                f"⚠️ Found {len(dup_rows)} row(s) across {dup_groups} "
+                f"duplicate Stk Code group(s) within the same "
+                f"Year + Warehouse."
+            )
+
+            with st.expander(
+                f"👀 Preview duplicate rows ({len(dup_rows)})",
+                expanded=True
+            ):
+                st.dataframe(
+                    dup_rows,
+                    use_container_width=True,
+                    height=300
+                )
+
+                dup_output = BytesIO()
+
+                with pd.ExcelWriter(
+                    dup_output,
+                    engine="openpyxl"
+                ) as writer:
+
+                    dup_rows.to_excel(
+                        writer,
+                        index=False
+                    )
+
+                st.download_button(
+                    "📤 Export Duplicate Rows",
+                    dup_output.getvalue(),
+                    file_name=f"Duplicate_Stk_Codes_{min(years)}-{max(years)}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+            duplicate_action = st.radio(
+                "How would you like to handle these duplicates?",
+                options=[
+                    "Keep all rows (do nothing)",
+                    "Remove duplicates (keep first occurrence only)"
+                ],
+                index=0
+            )
+
+            if duplicate_action == "Remove duplicates (keep first occurrence only)":
+
+                before_dedup = len(final_df)
+
+                final_df = final_df.drop_duplicates(
+                    subset=dup_key,
+                    keep="first"
+                )
+
+                removed_dupe_count = before_dedup - len(final_df)
+
+                st.info(
+                    f"🧹 Removed {removed_dupe_count} duplicate row(s). "
+                    f"{len(final_df)} row(s) remain."
+                )
+
+        # -----------------------------
         # Search Stock Code
         # -----------------------------
         st.markdown("---")
@@ -414,9 +507,11 @@ if uploaded_files:
             "Item": [
                 "Files Uploaded",
                 "Rows Before Cleaning",
-                "Rows Removed",
+                "Rows Removed (headers/subtotals/footer)",
                 "Rows After Cleaning",
                 "Years",
+                "Duplicate Groups Found",
+                "Duplicate Action",
                 "Status"
             ],
             "Value": [
@@ -425,6 +520,8 @@ if uploaded_files:
                 removed_rows,
                 total_rows_after,
                 f"{min(years)} - {max(years)}",
+                dup_rows.groupby(dup_key).ngroups if not dup_rows.empty else 0,
+                duplicate_action,
                 "SUCCESS"
             ]
         })
