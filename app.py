@@ -13,15 +13,6 @@ st.set_page_config(
 st.title("📊 Stock Report Cleaner")
 st.write("Prepare yearly inventory reports for Power BI")
 
-DEFAULT_REMOVE_CODES = [
-    "PMAT",
-    "RMAT",
-    "FG",
-    "WIP",
-    "PACKING",
-    "OTHERS"
-]
-
 if "uploader_key" not in st.session_state:
     st.session_state["uploader_key"] = 0
 
@@ -34,16 +25,25 @@ uploaded_files = st.file_uploader(
 
 
 @st.cache_data(show_spinner=False)
-def process_files(files, remove_codes):
+def process_files(files):
     """
     Reads, cleans, and combines all uploaded Excel reports.
-    Cached on (file content, remove_codes), so re-running the app (e.g.
-    typing in the search box, toggling a checkbox) will NOT re-read/
-    re-clean the files — it only recomputes if the uploaded files OR
-    the exclusion list changes.
 
-    remove_codes: tuple of stock codes to exclude (tuple, not list,
-    so it's hashable and works as a cache key).
+    Each report has section markers embedded in the 'Stk Code' column
+    (e.g. PMAT, CCTN, HH01...) — every real item between one marker and
+    the next belongs to that warehouse/category. Each marker also
+    reappears once more as a subtotal row for its section.
+
+    Real item rows always have a value in 'Uom'; marker/subtotal/grand
+    total/page-footer rows never do. That's a structural fact, not a
+    name we have to know in advance, so it works regardless of which
+    warehouse or how many different section codes a file uses.
+
+    We use that fact to:
+      1. Tag every real item row with its 'Warehouse' (carried forward
+         from the marker row above it).
+      2. Drop every non-item row (markers, subtotals, grand total,
+         page footer) from the final data.
     """
 
     all_data = []
@@ -88,40 +88,42 @@ def process_files(files, remove_codes):
 
         total_rows_before += len(df)
 
-        # Remove blank rows
+        # Remove fully blank rows
         df = df.dropna(how="all")
 
-        # Remove page footer
-        df = df[
-            ~df.astype(str).apply(
-                lambda row: row.str.contains(
-                    "Page",
-                    case=False,
-                    na=False
-                ).any(),
-                axis=1
-            )
-        ]
-
-        if "Stk Code" in df.columns:
-
-            df["Stk Code"] = (
-                df["Stk Code"]
-                .astype(str)
-                .str.strip()
+        if "Stk Code" not in df.columns or "Uom" not in df.columns:
+            raise ValueError(
+                f"{file.name} is missing an expected column "
+                f"('Stk Code' or 'Uom') — check the report format."
             )
 
-            df = df[
-                ~df["Stk Code"].isin(remove_codes)
-            ]
+        df["Stk Code"] = (
+            df["Stk Code"]
+            .astype(str)
+            .str.strip()
+        )
 
-            df = df[
-                ~df["Stk Code"].str.contains(
-                    "Grand",
-                    case=False,
-                    na=False
-                )
-            ]
+        # A row with no Uom is never a real stock item — it's a section
+        # marker, a section subtotal, the grand total, or the page footer.
+        marker_mask = df["Uom"].isna()
+
+        # The grand total / page footer rows are also marker rows, but
+        # they aren't warehouse names, so they shouldn't be carried
+        # forward as one.
+        footer_mask = (
+            df["Stk Code"].str.contains("Grand", case=False, na=False)
+            | df["Stk Code"].str.contains("Page", case=False, na=False)
+        )
+
+        warehouse_labels = df["Stk Code"].where(marker_mask & ~footer_mask)
+
+        # Carry the last-seen warehouse name down onto every item row
+        # below it, until the next marker changes it.
+        df["Warehouse"] = warehouse_labels.ffill()
+
+        # Now drop every non-item row — markers, subtotals, grand total,
+        # page footer — all identified by having no Uom.
+        df = df[~marker_mask]
 
         df.insert(
             0,
@@ -167,55 +169,19 @@ if uploaded_files:
     st.subheader("Uploaded Files")
     st.dataframe(file_df, use_container_width=True)
 
-    # -----------------------------
-    # Configurable Exclusion List
-    # -----------------------------
-    st.subheader("⚙️ Stock Code Exclusion Settings")
-
-    st.caption(
-        "Rows whose 'Stk Code' matches any of the selected codes below "
-        "will be removed from the cleaned report."
-    )
-
-    selected_codes = st.multiselect(
-        "Codes to exclude",
-        options=DEFAULT_REMOVE_CODES,
-        default=DEFAULT_REMOVE_CODES
-    )
-
-    custom_codes_input = st.text_input(
-        "Add custom code(s) to exclude (comma-separated, optional)",
-        placeholder="e.g. SCRAP, SAMPLE"
-    )
-
-    custom_codes = [
-        code.strip().upper()
-        for code in custom_codes_input.split(",")
-        if code.strip()
-    ]
-
-    remove_codes = tuple(
-        sorted(set(selected_codes) | set(custom_codes))
-    )
-
-    if remove_codes:
-        st.caption(f"Currently excluding: {', '.join(remove_codes)}")
-    else:
-        st.caption("No codes selected — no rows will be excluded by code.")
-
     if st.button("🚀 Process Reports"):
         st.session_state["processed"] = True
 
     if st.session_state.get("processed", False):
 
         # process_files is cached, so this only actually does work the
-        # first time (or when the uploaded files / remove_codes change) —
-        # every later rerun of the script (search box, checkboxes, etc.)
-        # just reuses the cached result instantly.
+        # first time (or when the uploaded files change) — every later
+        # rerun of the script (search box, checkboxes, etc.) just reuses
+        # the cached result instantly.
         try:
             with st.spinner("Processing reports..."):
                 final_df, years, total_rows_before, total_rows_after = process_files(
-                    uploaded_files, remove_codes
+                    uploaded_files
                 )
         except ValueError as e:
             st.error(f"❌ {e}")
@@ -260,6 +226,31 @@ if uploaded_files:
             "Years",
             f"{min(years)} - {max(years)}"
         )
+
+        # -----------------------------
+        # Warehouse Filter
+        # -----------------------------
+        st.markdown("---")
+        st.subheader("🏬 Warehouse Filter")
+
+        all_warehouses = sorted(
+            final_df["Warehouse"].dropna().unique().tolist()
+        )
+
+        st.caption(
+            f"Detected {len(all_warehouses)} warehouse(s)/categor(ies) "
+            f"across the uploaded files: {', '.join(all_warehouses)}"
+        )
+
+        selected_warehouses = st.multiselect(
+            "Include warehouses",
+            options=all_warehouses,
+            default=all_warehouses
+        )
+
+        final_df = final_df[
+            final_df["Warehouse"].isin(selected_warehouses)
+        ]
 
         # -----------------------------
         # Search Stock Code
@@ -448,4 +439,3 @@ st.markdown("---")
 st.caption("📊 Stock Report Cleaner v3.0")
 st.caption("Developed by Gerald")
 st.caption("Internship Project")
-
