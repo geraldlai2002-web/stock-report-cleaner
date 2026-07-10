@@ -3,8 +3,6 @@ import pandas as pd
 import re
 from io import BytesIO
 import zipfile
-import time
-import os
 
 st.set_page_config(
     page_title="Stock Report Cleaner",
@@ -20,6 +18,123 @@ uploaded_files = st.file_uploader(
     type=["xlsx"],
     accept_multiple_files=True
 )
+
+
+@st.cache_data(show_spinner=False)
+def process_files(files):
+    """
+    Reads, cleans, and combines all uploaded Excel reports.
+    Cached on file content, so re-running the app (e.g. typing in the
+    search box, toggling a checkbox) will NOT re-read/re-clean the files —
+    it only recomputes if the actual set of uploaded files changes.
+    """
+
+    all_data = []
+    years = []
+
+    total_rows_before = 0
+    total_rows_after = 0
+
+    for file in files:
+
+        # Read first row to detect year
+        header = pd.read_excel(
+            file,
+            header=None,
+            nrows=1
+        )
+
+        header_text = " ".join(
+            header.fillna("").astype(str).values.flatten()
+        )
+
+        match = re.search(
+            r"Date From\s+\d+/\d+/(\d{4})",
+            header_text
+        )
+
+        if not match:
+            raise ValueError(f"Cannot detect year from {file.name}")
+
+        year = int(match.group(1))
+
+        if year in years:
+            raise ValueError(f"Duplicate Year Detected: {year}")
+
+        years.append(year)
+
+        # Read report
+        df = pd.read_excel(
+            file,
+            header=1
+        )
+
+        total_rows_before += len(df)
+
+        # Remove blank rows
+        df = df.dropna(how="all")
+
+        # Remove page footer
+        df = df[
+            ~df.astype(str).apply(
+                lambda row: row.str.contains(
+                    "Page",
+                    case=False,
+                    na=False
+                ).any(),
+                axis=1
+            )
+        ]
+
+        if "Stk Code" in df.columns:
+
+            df["Stk Code"] = (
+                df["Stk Code"]
+                .astype(str)
+                .str.strip()
+            )
+
+            remove_codes = [
+                "PMAT",
+                "RMAT",
+                "FG",
+                "WIP",
+                "PACKING",
+                "OTHERS"
+            ]
+
+            df = df[
+                ~df["Stk Code"].isin(remove_codes)
+            ]
+
+            df = df[
+                ~df["Stk Code"].str.contains(
+                    "Grand",
+                    case=False,
+                    na=False
+                )
+            ]
+
+        df.insert(
+            0,
+            "Year",
+            year
+        )
+
+        total_rows_after += len(df)
+
+        all_data.append(df)
+
+    final_df = pd.concat(
+        all_data,
+        ignore_index=True
+    )
+
+    final_df = final_df.sort_values("Year")
+
+    return final_df, years, total_rows_before, total_rows_after
+
+
 if uploaded_files:
 
     col1, col2 = st.columns([4, 1])
@@ -47,118 +162,18 @@ if uploaded_files:
 
     if st.session_state.get("processed", False):
 
-        progress = st.progress(0)
-        status = st.empty()
-
-        all_data = []
-        years = []
-
-        total_rows_before = 0
-        total_rows_after = 0
-
-        total_files = len(uploaded_files)
-
-        for index, file in enumerate(uploaded_files):
-
-            status.write(f"Processing {file.name}...")
-
-            # Read first row to detect year
-            header = pd.read_excel(
-                file,
-                header=None,
-                nrows=1
-            )
-
-            header_text = " ".join(
-                header.fillna("").astype(str).values.flatten()
-            )
-
-            match = re.search(
-                r"Date From\s+\d+/\d+/(\d{4})",
-                header_text
-            )
-
-            if not match:
-                st.error(f"Cannot detect year from {file.name}")
-                st.stop()
-
-            year = int(match.group(1))
-
-            if year in years:
-                st.error(f"❌ Duplicate Year Detected: {year}")
-                st.stop()
-
-            years.append(year)
-
-            # Read report
-            df = pd.read_excel(
-                file,
-                header=1
-            )
-
-            total_rows_before += len(df)
-
-            # Remove blank rows
-            df = df.dropna(how="all")
-
-            # Remove page footer
-            df = df[
-                ~df.astype(str).apply(
-                    lambda row: row.str.contains(
-                        "Page",
-                        case=False,
-                        na=False
-                    ).any(),
-                    axis=1
+        # process_files is cached, so this only actually does work the
+        # first time (or when the uploaded files change) — every later
+        # rerun of the script (search box, checkboxes, etc.) just reuses
+        # the cached result instantly.
+        try:
+            with st.spinner("Processing reports..."):
+                final_df, years, total_rows_before, total_rows_after = process_files(
+                    uploaded_files
                 )
-            ]
-
-            if "Stk Code" in df.columns:
-
-                df["Stk Code"] = (
-                    df["Stk Code"]
-                    .astype(str)
-                    .str.strip()
-                )
-
-                remove_codes = [
-                    "PMAT",
-                    "RMAT",
-                    "FG",
-                    "WIP",
-                    "PACKING",
-                    "OTHERS"
-                ]
-
-                df = df[
-                    ~df["Stk Code"].isin(remove_codes)
-                ]
-
-                df = df[
-                    ~df["Stk Code"].str.contains(
-                        "Grand",
-                        case=False,
-                        na=False
-                    )
-                ]
-
-            df.insert(
-                0,
-                "Year",
-                year
-            )
-
-            total_rows_after += len(df)
-
-            all_data.append(df)
-
-            progress.progress(
-                (index + 1) / total_files
-            )
-
-            time.sleep(0.1)
-
-        status.empty()
+        except ValueError as e:
+            st.error(f"❌ {e}")
+            st.stop()
 
         # Missing year check
         if len(years) > 1:
@@ -180,17 +195,6 @@ if uploaded_files:
                     "⚠ Missing Year(s): "
                     + ", ".join(map(str, missing))
                 )
-
-        final_df = pd.concat(
-            all_data,
-            ignore_index=True
-        )
-
-        final_df = final_df.sort_values(
-            "Year"
-        )
-
-        st.session_state["final_df"] = final_df
 
         st.success("✅ Processing Complete")
 
@@ -215,11 +219,6 @@ if uploaded_files:
         # Search Stock Code
         # -----------------------------
         st.markdown("---")
-
-        if "final_df" not in st.session_state:
-            st.stop()
-
-        final_df = st.session_state["final_df"]
 
         st.subheader("🔍 Search Stock Code")
 
@@ -365,6 +364,7 @@ if uploaded_files:
                 file_name=f"Stock_Report_{min(years)}-{max(years)}_Separate.zip",
                 mime="application/zip"
             )
+
         # -----------------------------
         # Processing Log
         # -----------------------------
