@@ -20,8 +20,7 @@ uploaded_files = st.file_uploader(
     type=["xlsx"],
     accept_multiple_files=True
 )
-
- if uploaded_files:
+if uploaded_files:
 
     col1, col2 = st.columns([4, 1])
 
