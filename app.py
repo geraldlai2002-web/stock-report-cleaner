@@ -149,7 +149,7 @@ if uploaded_files:
                 )
             )
 
-                        missing = sorted(
+                missing = sorted(
                 set(expected) - set(years)
             )
 
