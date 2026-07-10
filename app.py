@@ -286,7 +286,7 @@ if uploaded_files:
             )
 
         st.markdown("---")
-        st.subheader("📊 Complete Report")
+        st.subheader("📊 Preview Report")
 
         st.dataframe(
             final_df,
