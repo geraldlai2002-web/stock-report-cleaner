@@ -176,6 +176,8 @@ if uploaded_files:
             "Year"
         )
 
+        st.session_state["final_df"] = final_df
+
         st.success("✅ Processing Complete")
 
         col1, col2, col3 = st.columns(3)
@@ -195,10 +197,16 @@ if uploaded_files:
             f"{min(years)} - {max(years)}"
         )
 
-               # -----------------------------
+        # -----------------------------
         # Search Stock Code
         # -----------------------------
         st.markdown("---")
+
+        if "final_df" not in st.session_state:
+            st.stop()
+
+        final_df = st.session_state["final_df"]
+
         st.subheader("🔍 Search Stock Code")
 
         search_code = st.text_input(
@@ -209,6 +217,7 @@ if uploaded_files:
 
             if "Stk Code" not in final_df.columns:
                 st.error("Column 'Stk Code' not found.")
+
             else:
 
                 result = final_df[
@@ -216,8 +225,10 @@ if uploaded_files:
                     .astype(str)
                     .str.upper()
                     .str.strip()
-                    ==
-                    search_code.upper().strip()
+                    .str.contains(
+                        search_code.upper().strip(),
+                        na=False
+                    )
                 ]
 
                 if result.empty:
