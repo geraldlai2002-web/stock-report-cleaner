@@ -32,6 +32,9 @@ if uploaded_files:
     st.dataframe(file_df, use_container_width=True)
 
     if st.button("🚀 Process Reports"):
+    st.session_state["processed"] = True
+
+    if st.session_state.get("processed", False):
 
         progress = st.progress(0)
         status = st.empty()
