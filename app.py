@@ -149,30 +149,27 @@ if uploaded_files:
                 )
             )
 
-            missing = sorted(
-                set(expected)-set(years)
+                        missing = sorted(
+                set(expected) - set(years)
             )
 
             if missing:
-
                 st.warning(
                     "⚠ Missing Year(s): "
-                    + ", ".join(
-                        map(str, missing)
-                    )
+                    + ", ".join(map(str, missing))
                 )
 
+        # Merge all reports
         final_df = pd.concat(
             all_data,
             ignore_index=True
         )
 
-        final_df = final_df.sort_values(
-            "Year"
-        )
+        final_df = final_df.sort_values("Year")
 
         st.success("✅ Processing Complete")
 
+        # Summary
         col1, col2, col3 = st.columns(3)
 
         col1.metric(
@@ -187,58 +184,68 @@ if uploaded_files:
 
         col3.metric(
             "Years",
-            f"{min(years)}-{max(years)}"
+            f"{min(years)} - {max(years)}"
         )
 
+        st.markdown("---")
         st.subheader("🔍 Search Stock Code")
 
-search_code = st.text_input(
-    "Enter Stock Code (Example: D10001)"
-)
-
-if search_code:
-
-    result = final_df[
-        final_df["Stk Code"]
-        .astype(str)
-        .str.upper()
-        ==
-        search_code.upper()
-    ]
-
-    if result.empty:
-
-        st.warning("No record found.")
-
-    else:
-
-        st.success(
-            f"{len(result)} record(s) found."
+        search_code = st.text_input(
+            "Enter Stock Code (Example: D10001)"
         )
+
+        if search_code:
+
+            result = final_df[
+                final_df["Stk Code"]
+                .astype(str)
+                .str.upper()
+                ==
+                search_code.upper()
+            ]
+
+            if result.empty:
+
+                st.warning("No record found.")
+
+            else:
+
+                st.success(
+                    f"{len(result)} record(s) found."
+                )
+
+                st.dataframe(
+                    result,
+                    use_container_width=True,
+                    height=350
+                )
+
+                output_search = BytesIO()
+
+                with pd.ExcelWriter(
+                    output_search,
+                    engine="openpyxl"
+                ) as writer:
+
+                    result.to_excel(
+                        writer,
+                        index=False
+                    )
+
+                st.download_button(
+                    "📤 Export Search Result",
+                    output_search.getvalue(),
+                    file_name=f"{search_code.upper()}_Report.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+        st.markdown("---")
+        st.subheader("📊 Complete Report")
 
         st.dataframe(
-            result,
+            final_df,
             use_container_width=True,
-            height=500
-        )
-
-        output2 = BytesIO()
-
-        with pd.ExcelWriter(
-            output2,
-            engine="openpyxl"
-        ) as writer:
-
-            result.to_excel(
-                writer,
-                index=False
-            )
-
-        st.download_button(
-            "📤 Export Search Result",
-            output2.getvalue(),
-            file_name=f"{search_code.upper()}_Report.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            height=450
         )
 
         output = BytesIO()
@@ -260,7 +267,15 @@ if search_code:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+        st.markdown("---")
+        st.subheader("📋 Processing Log")
+
+        st.write(f"📁 Files Uploaded : {len(uploaded_files)}")
+        st.write(f"📄 Rows After Cleaning : {len(final_df)}")
+        st.write(f"📅 Years : {min(years)} - {max(years)}")
+        st.write("✅ Status : SUCCESS")
+
 st.markdown("---")
-st.caption("📊 Stock Report Cleaner v2.1")
+st.caption("📊 Stock Report Cleaner v3.0")
 st.caption("Developed by JUN THANG LAI")
 st.caption("Internship Project")
