@@ -266,7 +266,7 @@ if uploaded_files:
                     st.download_button(
                         "📤 Export Search Result",
                         output_search.getvalue(),
-                        file_name=f"{search_code.upper()}_Report.xlsx",
+                        file_name=f"{search_code.upper()}_{min(years)}-{max(years)}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
 
@@ -310,7 +310,7 @@ if uploaded_files:
             st.download_button(
                 "📥 Download Merged Report",
                 output.getvalue(),
-                file_name=f"Stock_Report_{min(years)}_{max(years)}.xlsx",
+                file_name=f"Stock_Report_{min(years)}-{max(years)}_Merged.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
@@ -350,7 +350,7 @@ if uploaded_files:
             st.download_button(
                 "📦 Download Separate Reports (.zip)",
                 zip_buffer.getvalue(),
-                file_name="Stock_Reports.zip",
+                file_name=f"Stock_Report_{min(years)}-{max(years)}_Separate.zip",
                 mime="application/zip"
             )
         # -----------------------------
