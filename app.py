@@ -31,13 +31,13 @@ if uploaded_files:
     st.subheader("Uploaded Files")
     st.dataframe(file_df, use_container_width=True)
 
-    if st.button("🚀 Process Reports"):
+   if st.button("🚀 Process Reports"):
     st.session_state["processed"] = True
 
-    if st.session_state.get("processed", False):
+  if st.session_state.get("processed", False):
 
-        progress = st.progress(0)
-        status = st.empty()
+    progress = st.progress(0)
+    status = st.empty()
 
         all_data = []
         years = []
